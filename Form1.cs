@@ -64,13 +64,14 @@ namespace CVG
             keyboardHook.SuppressKey = SuppressKeyForCapture;
 
             capsHoldTimer = new System.Windows.Forms.Timer();
-            capsHoldTimer.Interval = 250;
+            capsHoldTimer.Interval = 1000;
             capsHoldTimer.Tick += CapsHoldTimer_Tick;
 
             this.KeyPreview = true;
             this.KeyDown += MainForm_KeyDown;
-            // если обработчик не привязан через дизайнер
-            // buttonMacro.Click += buttonMacro_Click;
+            ocrEngine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default);
+            ocrEngine.SetVariable("tessedit_char_whitelist", "0123456789.,um");
+
         }
 
         // Импорты WinAPI для мыши и активации окна
@@ -201,20 +202,14 @@ namespace CVG
             g.CopyFromScreen(r.Location, Point.Empty, r.Size);
             return bmp;
         }
+
         string ReadText(Bitmap bmp)
         {
-            using var engine = new TesseractEngine(
-                @"./tessdata",
-                "eng",
-                EngineMode.Default
-            );
-
-            engine.SetVariable("tessedit_char_whitelist", "0123456789.,um");
-
             using var pix = PixConverter.ToPix(bmp);
-            using var page = engine.Process(pix);
+            using var page = ocrEngine.Process(pix);
             return page.GetText();
         }
+
         double ParsePosition(string text)
         {
             text = text
