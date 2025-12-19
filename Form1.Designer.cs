@@ -40,6 +40,8 @@
             labelAxis2Value = new Label();
             labelAxis3Value = new Label();
             buttonWatch = new Button();
+            labelAxis1 = new Label();
+            labelAxis1Value = new Label();
             SuspendLayout();
             // 
             // button1
@@ -114,7 +116,7 @@
             // labelAxis2
             // 
             labelAxis2.AutoSize = true;
-            labelAxis2.Location = new Point(428, 12);
+            labelAxis2.Location = new Point(528, 12);
             labelAxis2.Name = "labelAxis2";
             labelAxis2.Size = new Size(40, 15);
             labelAxis2.TabIndex = 8;
@@ -123,7 +125,7 @@
             // labelAxis3
             // 
             labelAxis3.AutoSize = true;
-            labelAxis3.Location = new Point(552, 12);
+            labelAxis3.Location = new Point(625, 12);
             labelAxis3.Name = "labelAxis3";
             labelAxis3.Size = new Size(40, 15);
             labelAxis3.TabIndex = 9;
@@ -132,7 +134,7 @@
             // labelAxis2Value
             // 
             labelAxis2Value.AutoSize = true;
-            labelAxis2Value.Location = new Point(428, 41);
+            labelAxis2Value.Location = new Point(528, 41);
             labelAxis2Value.Name = "labelAxis2Value";
             labelAxis2Value.Size = new Size(0, 15);
             labelAxis2Value.TabIndex = 10;
@@ -140,7 +142,7 @@
             // labelAxis3Value
             // 
             labelAxis3Value.AutoSize = true;
-            labelAxis3Value.Location = new Point(552, 41);
+            labelAxis3Value.Location = new Point(625, 41);
             labelAxis3Value.Name = "labelAxis3Value";
             labelAxis3Value.Size = new Size(0, 15);
             labelAxis3Value.TabIndex = 11;
@@ -153,13 +155,32 @@
             buttonWatch.TabIndex = 12;
             buttonWatch.Text = "Watch axis";
             buttonWatch.UseVisualStyleBackColor = true;
-            buttonWatch.Click += async (sender, e) => await buttonWatch_ClickAsync(sender, e);
+            buttonWatch.Click += buttonWatch_Click;
+            // 
+            // labelAxis1
+            // 
+            labelAxis1.AutoSize = true;
+            labelAxis1.Location = new Point(425, 12);
+            labelAxis1.Name = "labelAxis1";
+            labelAxis1.Size = new Size(40, 15);
+            labelAxis1.TabIndex = 13;
+            labelAxis1.Text = "Axis 1:";
+            // 
+            // labelAxis1Value
+            // 
+            labelAxis1Value.AutoSize = true;
+            labelAxis1Value.Location = new Point(425, 41);
+            labelAxis1Value.Name = "labelAxis1Value";
+            labelAxis1Value.Size = new Size(0, 15);
+            labelAxis1Value.TabIndex = 14;
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(labelAxis1Value);
+            Controls.Add(labelAxis1);
             Controls.Add(buttonWatch);
             Controls.Add(labelAxis3Value);
             Controls.Add(labelAxis2Value);
@@ -194,5 +215,7 @@
         private Label labelAxis2Value;
         private Label labelAxis3Value;
         private Button buttonWatch;
+        private Label labelAxis1;
+        private Label labelAxis1Value;
     }
 }

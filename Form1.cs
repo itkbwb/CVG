@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using Tesseract;
 using static CVG.Form1;
@@ -35,7 +31,7 @@ namespace CVG
 
         private CancellationTokenSource watchCts;
         private Task watchTask;
-        private readonly object ocrLock = new object();
+        private readonly Lock ocrLock = new();
 
         private enum AddCaptureState
         {
@@ -50,6 +46,8 @@ namespace CVG
         private System.Windows.Forms.Timer capsHoldTimer;
         private bool capsIsDown;
         private bool overlayStarted;
+
+        private double? lastAxisValue = null;
 
         public Form1()
         {
@@ -112,7 +110,6 @@ namespace CVG
             }
         }
 
-
         private static void ClickAt(int x, int y)
         {
             SetCursorPos(x, y);
@@ -149,6 +146,7 @@ namespace CVG
             // 3. Переключение на окно Visual Studio
             ActivateVisualStudio();
         }
+
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode != Keys.F2)
@@ -220,6 +218,7 @@ namespace CVG
 
             return double.Parse(text, CultureInfo.InvariantCulture);
         }
+
         private void button1_Click(object sender, EventArgs e)
         {
             var bmp = CaptureRegion(positionRegion);
@@ -235,6 +234,7 @@ namespace CVG
                 labelCoords.Text = "OCR error: " + raw;
             }
         }
+
         public enum UiItemKind
         {
             ClickPoint = 0,
@@ -384,9 +384,8 @@ namespace CVG
             ocrEngine?.Dispose();
             keyboardHook?.Dispose();
             watchTimer?.Stop();
-
-            //base.OnFormClosed(e);
         }
+
         private bool SuppressKeyForCapture(int vk)
         {
             if (addState == AddCaptureState.Idle)
@@ -652,41 +651,59 @@ namespace CVG
         {
             return Task.Run(async () =>
             {
+                double? lastVal1 = null;
+                double? lastVal2 = null;
+
                 while (!token.IsCancellationRequested)
                 {
-                    UiItem r1 = null;
-                    UiItem r2 = null;
+                    var r1 = FindRegionByName(watchRegionName1);
+                    var r2 = FindRegionByName(watchRegionName2);
 
-                    BeginInvoke(new Action(() =>
-                    {
-                        r1 = FindRegionByName(watchRegionName1);
-                        r2 = FindRegionByName(watchRegionName2);
-                    }));
-
-                    await Task.Delay(1, token);
-
-                    string t1 = "";
-                    string t2 = "";
-
-                    if (r1 == null) t1 = "Region1 not found";
-                    if (r2 == null) t2 = "Region2 not found";
+                    string raw1 = null;
+                    string raw2 = null;
 
                     if (r1 != null)
                     {
-                        try { t1 = ReadRegionTextThreadSafe(r1); }
-                        catch { t1 = "OCR err"; }
+                        try { raw1 = ReadRegionTextThreadSafe(r1); }
+                        catch { }
                     }
 
                     if (r2 != null)
                     {
-                        try { t2 = ReadRegionTextThreadSafe(r2); }
-                        catch { t2 = "OCR err"; }
+                        try { raw2 = ReadRegionTextThreadSafe(r2); }
+                        catch { }
+                    }
+
+                    bool ok1 = false;
+                    bool ok2 = false;
+                    double val1 = 0;
+                    double val2 = 0;
+
+                    if (raw1 != null &&
+                        TryNormalizeValue(raw1, out val1) &&
+                        IsPhysicallyPlausible(val1))
+                    {
+                        lastVal1 = val1;
+                        ok1 = true;
+                    }
+
+                    if (raw2 != null &&
+                        TryNormalizeValue(raw2, out val2) &&
+                        IsPhysicallyPlausible(val2))
+                    {
+                        lastVal2 = val2;
+                        ok2 = true;
                     }
 
                     BeginInvoke(new Action(() =>
                     {
-                        labelAxis2Value.Text = t1;
-                        labelAxis3Value.Text = t2;
+                        labelAxis2Value.Text = ok1
+                            ? val1.ToString("F1")
+                            : lastVal1?.ToString("F1") ?? "—";
+
+                        labelAxis3Value.Text = ok2
+                            ? val2.ToString("F1")
+                            : lastVal2?.ToString("F1") ?? "—";
                     }));
 
                     await Task.Delay(500, token);
@@ -704,6 +721,72 @@ namespace CVG
 
             base.OnFormClosing(e);
         }
+
+        private string SanitizeOcr(string raw)
+        {
+            return raw
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Replace(" ", "")
+                .Replace("µm", "")
+                .Replace("um", "")
+                .Replace("O", "0")
+                .Replace("o", "0")
+                .Replace(",", ".")
+                .Trim();
+        }
+
+        private bool TryNormalizeValue(string raw, out double value)
+        {
+            value = 0;
+
+            raw = SanitizeOcr(raw);
+
+            if (string.IsNullOrWhiteSpace(raw))
+                return false;
+
+            int dotCount = raw.Count(c => c == '.');
+
+            if (dotCount == 0)
+            {
+                if (raw.Length < 2)
+                    return false;
+
+                raw = raw.Insert(raw.Length - 1, ".");
+            }
+            else if (dotCount > 1)
+            {
+                int lastDot = raw.LastIndexOf('.');
+                raw = raw.Remove(0, lastDot);
+                raw = raw.Insert(0, raw[..lastDot].Replace(".", ""));
+            }
+
+            if (!double.TryParse(raw, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value))
+                return false;
+
+            if (value < 0 || value > 5000)
+                return false;
+
+            value = Math.Round(value, 1);
+            return true;
+        }
+
+        private bool IsPhysicallyPlausible(double newValue)
+        {
+            if (lastAxisValue == null)
+                return true;
+
+            double delta = Math.Abs(newValue - lastAxisValue.Value);
+
+            return delta < 200; // порог подбери, 100–300 обычно норм
+        }
+
+        private async void buttonWatch_Click(object sender, EventArgs e)
+        {
+            await buttonWatch_ClickAsync(sender, e);
+        }
+
+
 
     }
 }
